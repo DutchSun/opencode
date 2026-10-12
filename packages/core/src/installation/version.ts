@@ -3,6 +3,7 @@ declare global {
   const OPENCODE_CHANNEL: string
 }
 
-export const InstallationVersion = typeof OPENCODE_VERSION === "string" ? OPENCODE_VERSION : "local"
+export const InstallationVersion =
+  process.env.OPENCODE_APP_VERSION ?? (typeof OPENCODE_VERSION === "string" ? OPENCODE_VERSION : "local")
 export const InstallationChannel = typeof OPENCODE_CHANNEL === "string" ? OPENCODE_CHANNEL : "local"
 export const InstallationLocal = InstallationChannel === "local"
