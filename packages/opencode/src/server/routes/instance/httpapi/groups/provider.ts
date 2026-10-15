@@ -42,10 +42,11 @@ export const ProviderApi = HttpApi.make("provider")
         HttpApiEndpoint.get("list", root, {
           query: Schema.Struct({
             ...WorkspaceRoutingQueryFields,
-            // "visible" (default): only providers the requesting identity can
-            // use right now (public runtime + own credentials) — for model
-            // pickers. "connect": full enabled catalog with `connected` flags —
-            // for the provider-connect wizard. Never includes credentials.
+            // "visible": only providers the requesting identity can use right
+            // now (public runtime + own credentials) — for compact pickers.
+            // Default and "connect": full enabled catalog with `connected`
+            // flags — for model pickers and the provider-connect wizard.
+            // Never includes credentials.
             scope: Schema.optional(Schema.Literals(["visible", "connect"])),
           }),
           success: described(Provider.ListResult, "List of providers"),
@@ -54,7 +55,7 @@ export const ProviderApi = HttpApi.make("provider")
             identifier: "provider.list",
             summary: "List providers",
             description:
-              "Get providers and models configured publicly or for the requesting x-user-id. scope=connect returns the full enabled catalog with connected flags for the connect wizard.",
+              "Get providers and models configured publicly or for the requesting x-user-id. Default response returns the full enabled catalog with connected flags; scope=visible narrows to providers this identity can use right now.",
           }),
         ),
         HttpApiEndpoint.get("auth", `${root}/auth`, {

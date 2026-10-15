@@ -74,23 +74,25 @@ export const providerHandlers = HttpApiBuilder.group(InstanceHttpApi, "provider"
           source: cred.type === "api" ? "api" : "custom",
         }
       }
-      if (ctx?.query?.scope === "connect") {
-        // Connect-wizard view: the full enabled catalog as the base (so users
-        // can discover providers they have not configured yet), runtime state
-        // layered on top, and `connected` marking what this identity can use.
-        const catalog: Record<string, Provider.Info> = mapValues(filtered, (item) =>
-          Provider.fromModelsDevProvider(item),
-        )
-        const merged = { ...catalog, ...providers }
+      if (ctx?.query?.scope === "visible") {
+        // Per-identity usable-only view for compact pickers; the default
+        // response keeps `all` as the full enabled catalog (legacy semantics)
+        // with `connected` marking what this identity can use.
         return {
-          all: Object.values(merged).map(Provider.toPublicInfo),
-          default: Provider.defaultModelIDs(merged),
+          all: Object.values(providers).map(Provider.toPublicInfo),
+          default: Provider.defaultModelIDs(providers),
           connected: Object.keys(providers),
         }
       }
+      // Default and connect views: full enabled catalog with runtime state
+      // layered on top; `connected` marks what this identity can use.
+      const merged = {
+        ...mapValues(filtered, (item) => Provider.fromModelsDevProvider(item)),
+        ...providers,
+      }
       return {
-        all: Object.values(providers).map(Provider.toPublicInfo),
-        default: Provider.defaultModelIDs(providers),
+        all: Object.values(merged).map(Provider.toPublicInfo),
+        default: Provider.defaultModelIDs(merged),
         connected: Object.keys(providers),
       }
     })
