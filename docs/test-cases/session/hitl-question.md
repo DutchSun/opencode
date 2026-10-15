@@ -926,3 +926,28 @@ curl -s "$BASE/permission" | jexec "sum(1 for q in d if q.get('sessionID')=='$S1
 > **能力缺口（待产品决策）**：批量审批端点、审批过期自动决策、会签/多审批人。
 >
 > **本轮用例执行完整性核对（2026-09-17 定稿）**：T8.1–T8.10 均有实测运行且全部定论。其中 T8.2 首两轮因模型未在 task 子 agent 内执行命令而不可复现，后**改用 API 构造 `parentID` 子会话**做确定性验证并通过（归属/继承/隔离/回复四项）；T8.5 经**确定性复验（强制调工具 + 日志/SQL 双证据）定论为 PASS**——`always` 落库正常（`session.permission` 追加 allow 行）、粒度 = arity 前缀 + ` *`；此前三次误判均系假象（模型未调工具的假阳性 + approved 按匿名身份跨会话累积 + 查询时机），并在用例中沉淀了「断言须检查 bash tool part 存在性」「多轮测试用不同 x-user-id 隔离 approved」两条经验。
+
+---
+
+> **复测记录（2026-10-12，feat/opencode-1.18.31 分支全量 38 例，最终全 PASS）**
+>
+> 环境：组合 1——**远端 PG + 远端 K8s 沙箱**，容器 `opencode-saas-test` @14096（镜像 `opencode-saas-sandbox-test:152c8587db`，分支头 commit），模型 `Yd-DeepSeek/deepseek-v4-flash`。自动脚本两轮：第一轮全量 T1.1–T8.10（20 PASS / 20 FAIL），第二轮重跑 8 例 + 数据复核改判，**最终 38/38 全 PASS**。
+>
+> **⚠️ 本轮最重要发现：消息结构 schema 变更（1.18.31 merge 后）**
+> `/session/:id/message` 的消息对象从旧版顶层 `role`/`id` 变为 `{info: {id, sessionID, role, time: {created, completed}}, parts: [...]}`，且 parts 采用 step 语义（`step-start`/`reasoning`/`tool`/`text`/`step-finish`）。**本文件所有用例中按 `m.get('role')` 过滤 assistant 的 python 片段已全部失效**（过滤结果恒为空 → 误判「无文本/run 未完成」）。正确写法：`m['info']['role']=='assistant'` + 按 `m['info']['time']['created']` 排序取最新。第一轮 20 例 FAIL 中 12 例纯由此导致（复核后文本全部存在：T1.3「你选择了继续」/T2.5 复述「继续」/T5.3「已收到，继续」/T7.7 deny 拒绝说明/T5.5「11.17.0」/T8.10「root」等）。
+>
+> **语义更新（与旧复测记录的差异）**：
+> - **T2.4 清扫时间**：实测租约清扫收场可超过 150s（本轮一次 ~3-4 分钟才 `closed|instance-restart`）——旧记录「~120s」偏乐观，用例等待建议放宽至 240s；收场语义本身正确（行终态 + question part error）
+> - **T7.2 级联粒度**：本轮模型真实并行发起了 2 单（`npm --version` + `npm config get registry`），对第一条 always 后第二条**未级联**——级联按 **arity 前缀**执行（allow 落的是 `"npm --version *"`，不匹配 `npm config get registry`），与 T8.5 arity 定论一致。用例期望应表述为「同 arity 前缀的其余待审批单级联关闭」
+> - **T7.5 status 语义**：根端点 reject 带意见 → 行终态为 `closed|decision-delivered`（旧记录的 `status=rejected` 已统一进 closed 语义，与 T6.3 会话级 reject 一致），`result.message` 意见原文保留 ✓
+>
+> **测试方法沉淀（脚本坑，复用注意）**：
+> 1. macOS `date` 不支持 `%3N`（毫秒时间戳）——生成 since 时间戳会带字面 `3N` 导致内嵌 python 比较语法错误、wait 函数静默永远超时
+> 2. bash 后台子 shell 的变量赋值不回传父 shell（T8.3 并发 HTTP code 需落临时文件）
+> 3. `grep -c` 计**行数**不计匹配次数（单行内多次 completed 会漏计，用 `grep -o | wc -l`）
+> 4. `GET /permission`/`GET /question` 列表与 PG 直查存在秒级刷新延迟——双通道判定时勿在 PG 首中后立即断言「列表不可见」
+> 5. 同一 `x-user-id` 身份的 approved 会跨会话累积（既有设计）——连续跑审批用例仍建议按用例独立身份隔离
+>
+> **环境事件**：测试中段 OrbStack daemon 崩溃一次（docker.sock 消失，`pkill OrbStack && open -a OrbStack` 恢复），与被测系统无关。
+>
+> **遗留观察项（未定论，低优先级）**：第一轮 T7.8 的挂起行于 11:32:53 被一次**非脚本发起的 `{"reply":"always"}`** 关闭（随后 T7.10 的同 pattern `uname*` 命令未再挂起，症状吻合 approved 匿名桶被该 reply 写入）；第二轮复测 T7.8 全程正常未复现。来源未溯源（本机其他容器连的是不同库 `opencode-v2-test`，已排除）。

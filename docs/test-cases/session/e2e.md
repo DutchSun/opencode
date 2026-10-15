@@ -202,3 +202,14 @@ curl -s --max-time 60 -X POST "$BASE/session/$SID/message" \
 >
 > 附注：autokeepalive 下 session 创建即启动沙箱，T10.1/T10.2 的首次工具调用无沙箱冷启动等待。
 
+> **复测记录（2026-10-12，镜像 `opencode-saas-sandbox-test:152c8587db`，组合 1（远端 PG + 远端 K8s 沙箱），模型切换为 `Yd-GLM/glm-5.3`（非默认 deepseek-v4-flash），文档原文 prompt）：T10.1–T10.4 全部通过。**
+>
+> | 用例 | 结果 | 备注 |
+> |---|---|---|
+> | T10.1 | ✅ | write×4 落盘（`/workspace/myapp/{myapp,tests}/` 4 个 .py，exec `find` 实锤）；exec 运行 `from myapp.main import main; main()` 输出 `hello`。AI 总结自报 pytest 未装属环境现状，不影响断言 |
+> | T10.2 | ✅ | write(calc.py) → read+edit(completed) 添加 subtract；exec 输出 `5` / `3` |
+> | T10.3 | ✅ | `/event` SSE 监听 210 个事件、13 种类型，`server.connected` → `message.*` → `file.edited` → `session.idle` 完整时间线；本轮出现 `permission.asked`（脚本自动应答 `always`，随后 `permission.replied`），判定脚本原有应答逻辑生效 |
+> | T10.4 | ✅ | Round 1 回复 `OK`，Round 2 正确回答 `42` |
+>
+> 附注：T10.3 的 bun 脚本（`t103_sse.mjs`）本轮以文件方式执行，模型字段替换为 Yd-GLM/glm-5.3，其余逻辑与文档原文一致（含 `join('\n')` 时间线输出的原语义）。
+

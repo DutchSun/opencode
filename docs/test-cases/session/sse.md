@@ -1093,4 +1093,19 @@ print('✅ 衔接窗口零丢失零重复')
 > - T9.37 `eventVisible` 5/5；`delivers instance events`/`keeps the event stream open` 2 个 fail 为 SQLite fixture 既有基线（stash 基线对比同样 2 fail，非本轮引入）
 > - 执行提示：整批脚本易因 SSE 窗口叠加超时，建议按 5-8 个用例分批执行；T9.25 断言勿用 `head -3` 截断头（content-type 在第 4 行）
 
+> **复测记录（2026-10-12，镜像 `opencode-saas-sandbox-test:t1012`（HEAD `152c8587db` + 工作区 flag.ts 改动，含 periodic snapshot refresh commit），组合 1（远端 PG + 远端 K8s 沙箱），真实 LLM `Yd-GLM/glm-5.3`，分 10 批执行）：T9.1–T9.37 全部通过**（T9.21 为待端点项，PATCH model 静默忽略 0/0 符合记录）。要点：
+> - T9.5 消息事件 64 条、T9.6 bash `pending→running→completed` 完整流转、T9.8 双会话 A=72/B=63 无交叉、T9.14 三客户端均 62 条 message 事件、T9.15 中途加入 B 收 250 条 message 事件 + idle
+> - T9.7 走「write 默认放行」分支（permission.asked=0，file.edited + idle 俱全，文档允许）
+> - T9.26 running 态 162B HTML（running=83 < completed=84 < idle=121 行号序）；T9.27 **24 条** raw delta 拼接 383B 全部早于 running 定稿
+> - T9.31 prompt_stream 34 事件 idle 末帧 curl=0（11s，回复「收到」语义断言通过）；T9.32 错误回合 UnknownError + idle 正常关流（3s）；T9.33 双流零交叉独立关流
+> - T9.35 四场景（无 after 不回放 / after=-1 全量各一次 / after=0 部分补发 / 非法 400×2）；T9.36 seqs=[1,2,3,4,5] 零丢失零重复；T9.37 `eventVisible` 6 pass / 2 fail（`keeps the event stream open` / `delivers instance events` 超时，SQLite fixture 既有基线，与 09-16 stash 对比一致）
+>
+> **本轮差异与踩坑（4 项，均非功能缺陷）**：
+> 1. **T9.11 / T9.26 首跑 write 挂 running**（2 次）：write 参数定稿后工具执行挂起（终态停 running、文件未落盘），同 session 稍后 exec 连通正常——远端 K8s 沙箱偶发不可达，write Promise 无重试挂死（文档前提已知症状）。重跑均通过；**缓解：长用例前先 exec warmup 预热沙箱**。另注意：write 挂死时若脚本收尾杀掉后台同步 curl，会连带触发 `Tool execution aborted`（首跑 T9.11 的 abort 即此因），业务 curl 应 `wait` 自然结束
+> 2. **T9.16 `session.deleted` 偶发丢失**（首跑 + 一次复测共 2 次，随后三路对照 + 2 连跑共 4 次全收到）：DELETE 返回 200 但会话流未推 deleted。已定位机制——`Session.remove` 的 `events.remove(sessionID)` 清除 `event_sequence` 行，`event.aggregate_id` 的 DEFERRED FK CASCADE 会把刚写入的 deleted 事件行级联清掉（表内已确认 0 行），会话流 catch-up 查表时拿不到；实时 notify 路径正常（三路全局/实例/会话流均收到）。定性偶发时序窗口，建议跟进：deleted 事件的 durable 补发与行级联清理的竞态
+> 3. **T9.25 断言修正**：curl 原始 body 首行是 SSE 分帧空行，且 `data: ` 前缀需剥离后再 JSON 解析（直接 `head -1 | jexec` 判空误报 FAIL），用 `grep -m1 '^data:' | sed 's/^data: //'` 取首事件
+> 4. **新镜像启动日志新增周期性 ERROR**（与 SSE 无关，记录在案）：`periodic snapshot scan query failed`——HEAD snapshot refresh commit 的扫描查询用 jsonb 操作符 `session.sandbox->>'persistMode'`，但远端 PG 该列为 `text`（`operator does not exist: text ->> unknown`）。prompt/SSE/工具链路不受影响；需给远端 PG 跑列类型迁移或代码侧兼容
+>
+> 执行提示补充：write 类长用例（T9.26/T9.27）窗口 150s 且参数生成（GLM-5.3 流式写 HTML）占约 60-90s，SSE 采集窗口要覆盖到 `session.idle`，判定脚本注意 `wait` 同步 curl 后再收尾。
+
 ---

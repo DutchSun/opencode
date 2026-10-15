@@ -204,5 +204,9 @@ print([(m['info']['role'], m['info'].get('format')) for m in msgs])
 > - 修复说明：TSO.2/TSO.7 覆盖本轮修复——`OutputFormat` 是 Schema.Class union，HTTP 响应 encode 仅接受类实例；PG bridge 的 `message-v2.ts info()` 原样透传普通 JSON 对象导致 encode 失败。修复为读取时对 format 字段 re-decode（decode 失败丢弃该可选字段，不炸列表）。
 > - 接口范围：`command` / `shell` 端点的输入 schema 无 format 字段，不支持结构化输出（代码确认 `ShellInput`/`CommandInput` 定义）。
 > - 已知限制：模型拒绝/未产出结构化输出时走 `StructuredOutputError`（`info.error`），触发条件依赖模型行为，未做稳定复现用例；`retryCount`（默认 2）重试机制当前未实现（失败路径 retries 硬编码 0），列为后续增强。
+>
+> **复测记录（2026-10-12，镜像 `opencode-saas-sandbox-test:152c8587db`，组合 1（远端 PG + 远端 K8s 沙箱），模型切换为 `Yd-GLM/glm-5.3`（非默认 deepseek-v4-flash））：TSO.1–TSO.7 全部通过，语义值按文档期望精确断言**——TSO.1 ✅（structured 精确等于 `{"answer": true, "city": "北京"}`，finish=tool-calls 属正常）/ TSO.2 ✅（列表+单条 GET 200，user.format=json_schema + structured 完整回读）/ TSO.3 ✅（204 + 轮询 `{"color": "蓝色"}`，PG 侧 `data->>'structured'` 精确匹配）/ TSO.4 ✅（流内 `{"days": 7}`，idle 末帧，curl_exit=0）/ TSO.5 ✅（xml → 400 `Expected OutputFormat, got {"type":"xml","schema":{}} at ["format"]`；schema=42 → 400）/ TSO.6 ✅（text 格式 structured=null，回复精确含「收到」）/ TSO.7 ✅（PG 直写脏 format UPDATE 2 条后 GET 200，user.format 全部丢弃为 None，assistant 消息不受影响）。
+>
+> 附注：TSO.1 断言脚本再次踩中 09-16 附注记录的 jexec repr 坑（`{'city': '北京', 'answer': True}` 单引号 repr 不能用 `json.loads` 解析），本轮改为原始 JSON 响应直接解析判定；功能无问题。GLM-5.3 在结构化输出链路（StructuredOutput 工具注入 + toolChoice=required + format 读回/容错）行为与 deepseek-v4-flash 一致。
 
 ---

@@ -163,3 +163,16 @@ sleep 1 && curl -s -X POST "$BASE/session/$SID/abort"
 > | T4.7 | ✅ | abort=true；parts 零增长（8s）确认停止生成 |
 >
 > 附注：本轮起 session 创建默认自动 keepalive + boot 沙箱（autokeepalive），全程工具调用无沙箱冷启动等待/502。
+
+> **复测记录（2026-10-12，镜像 `opencode-saas-sandbox-test:152c8587db`，组合 1（远端 PG + 远端 K8s 沙箱），模型切换为 `Yd-GLM/glm-5.3`（非默认 deepseek-v4-flash），文档原文 prompt，session `ses_ed1df1d9dffegPQd7kg7JAuY9B`）：T4.1–T4.7 全部通过。**
+> | 用例 | 结果 | 备注 |
+> |---|---|---|
+> | T4.1 | ✅ | 回复 `2` |
+> | T4.2 | ✅ | 第二轮回复「你叫张三。」 |
+> | T4.3 | ✅ | `write(completed)`，总结确认创建 |
+> | T4.4 | ✅ | `read(completed)`，回复含 `hello` |
+> | T4.5 | ✅ | `bash(completed)`，`ls /workspace` 列出 `t4-3.txt` |
+> | T4.6 | ✅ | HTTP 204；异步五言绝句落库（「秋月照寒江，孤舟泛晚霜」） |
+> | T4.7 | ✅ | abort=true；中断发生在首个 assistant message 落库前（末条消息仍为 T4.6 产物，parts 1→1，8s 零增长），符合早期中断语义 |
+>
+> 结论：GLM-5.3（glm-5.3）在该链路上行为正常，文本对话/上下文记忆/write-read-bash 工具闭环/异步/中断均无异常。
