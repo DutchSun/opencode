@@ -32,3 +32,6 @@ UPCOMING_CHANGELOG.md
 logs/
 *.bun-build
 tsconfig.tsbuildinfo
+
+# codegraph 预下载二进制（55MB，构建资源不进 git；缺失时见 docker/README.md）
+packages/opencode/docker/opt/codegraph/*.tar.gz

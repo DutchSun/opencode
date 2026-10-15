@@ -1,0 +1,21 @@
+{
+  "name": "xybot-common",
+  "private": true,
+  "description": "xybot 系私有 scope 高频包（阿里云制品仓库），预热 npm tarball cache 跨会话/跨版本共享",
+  "dependencies": {
+    "@xybot/cli": "1.8.16",
+    "@xybot/bury": "0.2.0",
+    "@xybot/i18n": "0.1.6",
+    "@xybot/monitor": "0.0.20",
+    "@xybot/microApp": "0.0.1-beta.1",
+    "@xybot/auth-sdk-i18n": "0.2.45",
+    "@xybot/server": "0.0.20",
+    "@xybot/editor-extensions": "0.0.1-beta.130.0",
+    "@xybot/editor-menu": "0.0.1-beta.77.1",
+    "@xybot/iconfont": "^0.0.6",
+    "@xybot/vite-plugin-base": "^0.0.2",
+    "@xybot/vite-plugin-pages": "^0.0.2",
+    "@xybot/vite-plugin-server": "^0.0.1",
+    "@xybot/vite-plugin-harness": "^0.0.1"
+  }
+}
