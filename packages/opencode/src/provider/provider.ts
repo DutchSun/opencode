@@ -1626,6 +1626,15 @@ const layer = Layer.effect(
               source: "api",
               key: provider.key,
             })
+            // Free-tier literal key: paid models cannot be called with it, so
+            // keep only zero-cost models to avoid surfacing dead entries.
+            if (provider.key === "public" && providers[providerID]) {
+              providers[providerID].models = Object.fromEntries(
+                Object.entries(providers[providerID].models).filter(
+                  ([, m]) => m.cost.input === 0 && m.cost.output === 0,
+                ),
+              )
+            }
           }
         }
 
